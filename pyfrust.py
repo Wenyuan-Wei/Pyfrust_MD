@@ -1,6 +1,8 @@
 import frustratometer
 import pathlib
 import numpy as np
+import contextlib
+import io
 from typing import Optional, Tuple
 
 # Global variable for amino acid indexing
@@ -11,18 +13,19 @@ def single_frust(pdb:str, chain:Optional[str]=None,
                  k_electrostatics:float=17.3636, 
                  min_sequence_separation_contact:int=2, 
                  validate:bool=False)->Tuple[np.ndarray, np.ndarray]:
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        # Read the structure from the PDB file
+        pdb=pathlib.Path(pdb)
+        structure=frustratometer.Structure(pdb_file=pdb, chain=chain)
 
-    # Read the structure from the PDB file
-    pdb=pathlib.Path(pdb)
-    structure=frustratometer.Structure(pdb_file=pdb, chain=chain)
+        ## Single residue frustration with electrostatics
+        ## Immediate neighbors are ignored -- likely to suppress secondary structure effects 
+        model_singleresidue = frustratometer.AWSEM(structure, min_sequence_separation_contact=min_sequence_separation_contact, 
+                                                   k_electrostatics=k_electrostatics)
 
-    ## Single residue frustration with electrostatics
-    ## Immediate neighbors are ignored -- likely to suppress secondary structure effects 
-    model_singleresidue = frustratometer.AWSEM(structure, min_sequence_separation_contact=min_sequence_separation_contact, 
-                                               k_electrostatics=k_electrostatics)
-
-    # Calculate AWSEM energy change with respect to wildtype 
-    DE=model_singleresidue.decoy_fluctuation(kind="singleresidue")
+        # Calculate AWSEM energy change with respect to wildtype 
+        DE=model_singleresidue.decoy_fluctuation(kind="singleresidue")
+    
     # Obtain amino acid frequencies from the model
     aa_freq=model_singleresidue.aa_freq
     # Normalize to get probabilities
