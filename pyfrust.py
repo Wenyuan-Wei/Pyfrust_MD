@@ -3,6 +3,7 @@ import pathlib
 import numpy as np
 import contextlib
 import io
+import os 
 from typing import Optional, Tuple
 
 # Global variable for amino acid indexing
@@ -17,7 +18,7 @@ def single_frust(pdb:str, chain:Optional[str]=None,
         # Read the structure from the PDB file
         pdb=pathlib.Path(pdb)
         structure=frustratometer.Structure(pdb_file=pdb, chain=chain)
-
+        os.remove(f"{pdb.stem}_cleaned.pdb")  # Clean up the intermediate cleaned PDB file
         ## Single residue frustration with electrostatics
         ## Immediate neighbors are ignored -- likely to suppress secondary structure effects 
         model_singleresidue = frustratometer.AWSEM(structure, min_sequence_separation_contact=min_sequence_separation_contact, 
