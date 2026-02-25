@@ -48,7 +48,43 @@ def single_frust(pdb:str, chain:Optional[str]=None,
     # Return the Z-scores for all residues and the Z-score for the wildtype amino acid 
     return Z, Z[np.arange(len(structure.sequence)), wt_indx]
 
-def pairwise_frust():pass 
+def pairwise_frust(pdb:str, chain:Optional[str]=None, 
+                 k_electrostatics:float=17.3636, 
+                 min_sequence_separation_contact:int=1, 
+                 validate:bool=False)->Tuple[np.ndarray, np.ndarray]:
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        # Read the structure from the PDB file
+        pdb=pathlib.Path(pdb)
+        structure=frustratometer.Structure(pdb_file=pdb, chain=chain)
+        os.remove(f"{pdb.stem}_cleaned.pdb")  # Clean up the intermediate cleaned PDB file
+        ## Mutational/Configurational frustration with electrostatics
+        model_singleresidue = frustratometer.AWSEM(structure, min_sequence_separation_contact=min_sequence_separation_contact, 
+                                                   k_electrostatics=k_electrostatics)
+
+        # Calculate AWSEM energy change with respect to wildtype 
+        DE=model_singleresidue.decoy_fluctuation(kind="mutational")
+    
+    aa_freq=model_singleresidue.aa_freq
+    reweighted_aa_freq=aa_freq / aa_freq.sum()
+    W = np.outer(reweighted_aa_freq, reweighted_aa_freq) # (21, 21)
+
+    aa_to_idx = {aa: i for i, aa in enumerate(_AA)}
+    wt_indx = np.fromiter((aa_to_idx[c] for c in structure.sequence), dtype=np.int64, count=len(structure.sequence))
+    I = np.arange(len(structure.sequence))[:, None]
+    J = np.arange(len(structure.sequence))[None, :]
+
+    mean = np.sum(DE * W, axis=(-2, -1))    # (L,L)
+    std  = np.sqrt(np.sum((DE - mean[:, :, None, None])**2 * W, axis=(-2, -1)))  # (L,L)
+    std  = np.where(std == 0, np.nan, std) # Avoid division by zero
+    Z = (mean[:, :, None, None] - DE) / std[:, :, None, None]
+    Z_wt = Z[I, J, wt_indx[:, None], wt_indx[None,:]]
+
+    if validate:
+        library_z=model_singleresidue.frustration(kind="mutational")
+        assert np.allclose(Z_wt, library_z, equal_nan=True), "Calculated Z-scores do not match library values."
+    
+    # Return the Z-scores for all residues and the Z-score for the wildtype amino acid 
+    return Z, Z_wt
 
 
 # Placeholder for comformational frustration calculation
