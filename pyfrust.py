@@ -58,13 +58,13 @@ def pairwise_frust(pdb:str, chain:Optional[str]=None,
         structure=frustratometer.Structure(pdb_file=pdb, chain=chain)
         os.remove(f"{pdb.stem}_cleaned.pdb")  # Clean up the intermediate cleaned PDB file
         ## Mutational/Configurational frustration with electrostatics
-        model_singleresidue = frustratometer.AWSEM(structure, min_sequence_separation_contact=min_sequence_separation_contact, 
+        model_pairwise = frustratometer.AWSEM(structure, min_sequence_separation_contact=min_sequence_separation_contact, 
                                                    k_electrostatics=k_electrostatics)
-        model_singleresidue.distance_cutoff=9.5
+        model_pairwise.distance_cutoff=9.5
         # Calculate AWSEM energy change with respect to wildtype 
-        DE=model_singleresidue.decoy_fluctuation(kind="mutational", mask=model_singleresidue.mask)
+        DE=model_pairwise.decoy_fluctuation(kind="mutational", mask=model_pairwise.mask)
     
-    aa_freq=model_singleresidue.aa_freq
+    aa_freq=model_pairwise.aa_freq
     reweighted_aa_freq=aa_freq / aa_freq.sum()
     W = np.outer(reweighted_aa_freq, reweighted_aa_freq) # (21, 21)
 
@@ -80,7 +80,7 @@ def pairwise_frust(pdb:str, chain:Optional[str]=None,
     Z_wt = Z[I, J, wt_indx[:, None], wt_indx[None,:]]
 
     if validate:
-        library_z=model_singleresidue.frustration(kind="mutational", mask=model_singleresidue.mask)
+        library_z=model_pairwise.frustration(kind="mutational", mask=model_pairwise.mask)
         assert np.allclose(Z_wt, library_z, equal_nan=True), "Calculated Z-scores do not match library values."
     
     # Return the Z-scores for all residues and the Z-score for the wildtype amino acid 
