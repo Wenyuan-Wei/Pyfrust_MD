@@ -6,6 +6,8 @@ import io
 import os 
 from typing import Optional, Tuple
 
+import masking 
+
 # Global variable for amino acid indexing
 # This is consistent with the indexing used in the frustratometer package, where the first character is a placeholder for gaps or unknown residues.
 _AA = "-ACDEFGHIKLMNPQRSTVWY"
@@ -13,6 +15,7 @@ _AA = "-ACDEFGHIKLMNPQRSTVWY"
 def single_frust(pdb:str, chain:Optional[str]=None, 
                  k_electrostatics:float=17.3636, 
                  min_sequence_separation_contact:int=2, 
+                 maximum_contact_distance:Optional[float]=9.5,
                  validate:bool=False)->Tuple[np.ndarray, np.ndarray]:
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         # Read the structure from the PDB file
@@ -23,9 +26,11 @@ def single_frust(pdb:str, chain:Optional[str]=None,
         ## Immediate neighbors are ignored -- likely to suppress secondary structure effects 
         model_singleresidue = frustratometer.AWSEM(structure, min_sequence_separation_contact=min_sequence_separation_contact, 
                                                    k_electrostatics=k_electrostatics)
-        model_singleresidue.distance_cutoff=9.5
+        custom_mask = masking.compute_mask(structure.distance_matrix,
+                                        maximum_contact_distance=maximum_contact_distance,
+                                        minimum_sequence_separation=min_sequence_separation_contact)
         # Calculate AWSEM energy change with respect to wildtype 
-        DE=model_singleresidue.decoy_fluctuation(kind="singleresidue", mask=model_singleresidue.mask)
+        DE=model_singleresidue.decoy_fluctuation(kind="singleresidue", mask=custom_mask)
     
     # Obtain amino acid frequencies from the model
     aa_freq=model_singleresidue.aa_freq
@@ -42,7 +47,7 @@ def single_frust(pdb:str, chain:Optional[str]=None,
     Z = (mean[:, None] - DE) / std[:, None]
 
     if validate:
-        library_z=model_singleresidue.frustration(kind="singleresidue", mask=model_singleresidue.mask)
+        library_z=model_singleresidue.frustration(kind="singleresidue", mask=custom_mask)
         assert np.allclose(Z[np.arange(len(structure.sequence)), wt_indx], library_z, equal_nan=True), "Calculated Z-scores do not match library values."
     
     # Return the Z-scores for all residues and the Z-score for the wildtype amino acid 
@@ -50,7 +55,8 @@ def single_frust(pdb:str, chain:Optional[str]=None,
 
 def pairwise_frust(pdb:str, chain:Optional[str]=None, 
                  k_electrostatics:float=17.3636, 
-                 min_sequence_separation_contact:int=1, 
+                 min_sequence_separation_contact:int=1,
+                 maximum_contact_distance:float=9.5, 
                  validate:bool=False)->Tuple[np.ndarray, np.ndarray]:
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         # Read the structure from the PDB file
@@ -60,9 +66,12 @@ def pairwise_frust(pdb:str, chain:Optional[str]=None,
         ## Mutational/Configurational frustration with electrostatics
         model_pairwise = frustratometer.AWSEM(structure, min_sequence_separation_contact=min_sequence_separation_contact, 
                                                    k_electrostatics=k_electrostatics)
-        model_pairwise.distance_cutoff=9.5
+
+        custom_mask = masking.compute_mask(structure.distance_matrix,
+                                        maximum_contact_distance=maximum_contact_distance,
+                                        minimum_sequence_separation=min_sequence_separation_contact)
         # Calculate AWSEM energy change with respect to wildtype 
-        DE=model_pairwise.decoy_fluctuation(kind="mutational", mask=model_pairwise.mask)
+        DE=model_pairwise.decoy_fluctuation(kind="mutational", mask=custom_mask)
     
     aa_freq=model_pairwise.aa_freq
     reweighted_aa_freq=aa_freq / aa_freq.sum()
@@ -80,7 +89,7 @@ def pairwise_frust(pdb:str, chain:Optional[str]=None,
     Z_wt = Z[I, J, wt_indx[:, None], wt_indx[None,:]]
 
     if validate:
-        library_z=model_pairwise.frustration(kind="mutational", mask=model_pairwise.mask)
+        library_z=model_pairwise.frustration(kind="mutational", mask=custom_mask)
         assert np.allclose(Z_wt, library_z, equal_nan=True), "Calculated Z-scores do not match library values."
     
     # Return the Z-scores for all residues and the Z-score for the wildtype amino acid 
