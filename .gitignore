@@ -1,1 +1,6 @@
 __pycache__
+input/
+shards/
+*.csv
+*.pdb 
+*.zarr
