@@ -90,7 +90,7 @@ def write_frustration_zarr(
         with PDBWriter(str(pdb_path0)) as W:
             W.write(prot)
 
-        sequence = pdb_parser.get_sequence(pdb_path0)
+        sequence = pdb_parser.get_sequence(pdb_path0, chain=kwargs.get("chain", None))
 
         Z0, Zwt0 = _run_frust(str(pdb_path0), mode=mode, validate=validate, **kwargs)
 
