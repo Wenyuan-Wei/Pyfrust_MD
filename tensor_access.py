@@ -249,10 +249,10 @@ def _resolve_seq_and_order_for_wt(
     z_seq = g.attrs.get("sequence", None)
     z_seq = str(z_seq).strip() if z_seq is not None else ""
 
-    if z_seq:
-        seq_final = z_seq
-    elif seq is not None and str(seq).strip():
+    if seq is not None and str(seq).strip():
         seq_final = str(seq).strip()
+    elif z_seq:
+        seq_final = z_seq
     else:
         raise ValueError(
             "WT collapse requested (collapse mode 'wt'), but no sequence was provided.\n"
